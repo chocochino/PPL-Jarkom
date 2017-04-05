@@ -5,6 +5,8 @@ import java.awt.event.ActionListener;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
 import java.io.PrintStream;
+import java.io.PrintWriter;
+import java.util.ArrayList;
 
 import javax.swing.JButton;
 import javax.swing.JFrame;
@@ -13,6 +15,11 @@ import chat.Client;
 import chat.MessageType;
 import gui.swing.MessageBox;
 
+/**
+ * 
+ * @author Steven Albert
+ *
+ */
 public class ClientGUI extends JFrame {
 
 	private static final long serialVersionUID = -6130481756585137635L;
@@ -30,7 +37,7 @@ public class ClientGUI extends JFrame {
 	/**
 	 * MessageBox Object to display users that are connected
 	 */
-	private MessageBox connectedUserBox;
+	private MessageBox onlineUsersBox;
 	
 	/**
 	 * MessageBox Object for entering the message that will be sent
@@ -48,7 +55,19 @@ public class ClientGUI extends JFrame {
 	private JButton chooseFileButton;
 	
 	/**
-	 * 
+	 * PrintWriter Object for printing online user
+	 */
+	private PrintWriter onlineUsersUpdateWriter;
+	
+	/**
+	 * Thread for update the connected users in the chat room
+	 */
+	private Thread onlineUsersUpdaterThread;
+	
+	
+	/**
+	 * Initialize the Graphical User Interface for Client
+	 * @param client
 	 */
 	public ClientGUI(Client client) {
 		super("Client");
@@ -65,44 +84,32 @@ public class ClientGUI extends JFrame {
 			
 			@Override
 			public void windowOpened(WindowEvent e) {
-				// TODO Auto-generated method stub
-				
 			}
 			
 			@Override
-			public void windowIconified(WindowEvent e) {
-				// TODO Auto-generated method stub
-				
+			public void windowIconified(WindowEvent e) {	
 			}
 			
 			@Override
 			public void windowDeiconified(WindowEvent e) {
-				// TODO Auto-generated method stub
-				
 			}
 			
 			@Override
 			public void windowDeactivated(WindowEvent e) {
-				// TODO Auto-generated method stub
-				
 			}
 			
 			@Override
 			public void windowClosing(WindowEvent e) {
-				// TODO Auto-generated method stub
 				client.disconnect();
 			}
 			
 			@Override
 			public void windowClosed(WindowEvent e) {
-				// TODO Auto-generated method stub
 				client.disconnect();
 			}
 			
 			@Override
 			public void windowActivated(WindowEvent e) {
-				// TODO Auto-generated method stub
-				
 			}
 		});
 		
@@ -112,9 +119,9 @@ public class ClientGUI extends JFrame {
 		this.add(messageBox.getScrollPane());
 		
 		//Connected User Box
-		connectedUserBox = new MessageBox(450, 30, 120, 255);
-		connectedUserBox.setEditable(false);
-		this.add(connectedUserBox.getScrollPane());
+		onlineUsersBox = new MessageBox(450, 30, 120, 255);
+		onlineUsersBox.setEditable(false);
+		this.add(onlineUsersBox.getScrollPane());
 		
 		//Enter Message Box
 		enterMessageBox = new MessageBox(10, 290, 430, 70);
@@ -128,10 +135,9 @@ public class ClientGUI extends JFrame {
 			
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				// TODO Auto-generated method stub
 				String message = enterMessageBox.getText();
 				if(!message.trim().equals("")) {
-					client.sendMessage(enterMessageBox.getText(), MessageType.MESSAGE);
+					client.sendMessage(enterMessageBox.getText(), MessageType.CHAT_MESSAGE);
 				}
 				enterMessageBox.setText("");
 			}
@@ -147,17 +153,53 @@ public class ClientGUI extends JFrame {
 			
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				// TODO Auto-generated method stub
-				
+				//Unimplemented
 			}
 		});
 		chooseFileButton.setVisible(true);
 		this.add(chooseFileButton);
 		
-		//---
-		this.setVisible(true);
+		//Online User Print
+		onlineUsersUpdateWriter = new PrintWriter(onlineUsersBox.getOutputStream());
+		onlineUsersUpdaterThread = new Thread(new Runnable() {
+			
+			@Override
+			public void run() {
+				while(client.isConnected()) {
+					if(client.getNumberOfUserChange() > 0) {
+						//Update user
+						client.userChangeKnown();
+						
+						//Clear the String in connectedUserBox
+						onlineUsersBox.setText("");
+						
+						//Add connected users' username
+						ArrayList<String> users = client.getUsersName();
+						for(int i=0; i<users.size(); i++) {
+							onlineUsersUpdateWriter.print(users.get(i));
+							if(users.get(i).equals(client.getUsername())) {
+								onlineUsersUpdateWriter.print(" (You)");
+							}
+							onlineUsersUpdateWriter.println();
+							onlineUsersUpdateWriter.flush();
+						}
+					}
+					try {
+						Thread.sleep(1000);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+				}
+			}
+		});
 		
+		
+		this.setVisible(true);
+		//End of initialize frame
+		
+		//Other setting
 		this.client.setPrintStreamOfChatBox(new PrintStream(this.messageBox.getOutputStream()));
+		this.onlineUsersUpdaterThread.start();
 		this.client.connect();
 	}
 }
