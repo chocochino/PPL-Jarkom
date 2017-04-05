@@ -1,8 +1,19 @@
 package chat;
 
+/**
+ * 
+ * @author Steven Albert
+ *
+ */
 public enum MessageType {
-
-	CONNECT("Connect"), DISCONNECT("Disconnect"), MESSAGE("Message");
+	
+	USER_CONNECT("UserConnect"),
+	USER_DISCONNECT("UserDisconnect"),
+	CHAT_MESSAGE("ChatMessage"),
+	PRIVATE_CHAT_MESSAGE("PrivateChatMessage"),
+	CHANGE_USERNAME("ChangeUsername"),
+	SERVER_CONNECT("ServerConnect"),
+	SERVER_DISCONNECT("ServerDisconnect");
 	
 	/**
 	 * String that will be used in a message
@@ -10,7 +21,7 @@ public enum MessageType {
 	private String description;
 	
 	/**
-	 * 
+	 * Initialize the Enumeration Object
 	 * @param desc
 	 */
 	private MessageType(String desc) {

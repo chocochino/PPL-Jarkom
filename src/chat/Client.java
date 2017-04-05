@@ -15,8 +15,6 @@ import java.util.ArrayList;
  *
  */
 public class Client implements Runnable {
-
-	private static final char typeSeparator = '$';
 	
 	/**
 	 * Object of Socket for client
@@ -31,12 +29,12 @@ public class Client implements Runnable {
 	/**
 	 * The name of the client
 	 */
-	private String clientName;
+	private String username;
 	
 	/**
 	 * List of all users in a room
 	 */
-	private ArrayList<String> users;
+	private ArrayList<String> onlineUsers;
 	
 	/**
 	 * Thread for running a receiver in waiting of incoming message
@@ -58,15 +56,19 @@ public class Client implements Runnable {
 	 */
 	private PrintStream output;
 	
+	/**
+	 * 
+	 */
+	private int numberOfUserChange;
 	
 	/**
 	 * 
 	 * @param hostName
 	 * @param portNumber
-	 * @param clientName
+	 * @param username
 	 * @param intendedOutput
 	 */
-	public Client(String hostName, int portNumber, String clientName, PrintStream intendedOutput) {
+	public Client(String hostName, int portNumber, String username, PrintStream intendedOutput) {
 		//Create socket for client
 		try {
 			this.clientSocket = new Socket(hostName, portNumber);
@@ -92,10 +94,11 @@ public class Client implements Runnable {
 		}
 		
 		//Assign another information
-		this.clientName = clientName;
+		this.username = username;
 		this.setPrintStreamOfChatBox(intendedOutput);
-		this.users = new ArrayList<String>();
-		this.users.add(this.clientName);
+		this.onlineUsers = new ArrayList<String>();
+		this.numberOfUserChange = 0;
+		addUser(this.username);
 	}
 	
 	/**
@@ -105,7 +108,7 @@ public class Client implements Runnable {
 		if(isConnected) return;
 		this.isConnected = true;
 		this.thread = new Thread(this, "Client Socket Java");
-		sendMessage("", MessageType.CONNECT);
+		sendMessage("", MessageType.USER_CONNECT);
 		this.thread.run();
 	}
 	
@@ -119,11 +122,19 @@ public class Client implements Runnable {
 	
 	/**
 	 * 
+	 * @return
+	 */
+	public String getUsername() {
+		return username;
+	}
+	
+	/**
+	 * 
 	 */
 	public void disconnect() {
 		if(!isConnected) return;
 		this.isConnected = false;
-		sendMessage("", MessageType.DISCONNECT);
+		sendMessage("", MessageType.USER_DISCONNECT);
 		try {
 			this.clientSocket.close();
 		} catch (IOException e) {
@@ -133,10 +144,60 @@ public class Client implements Runnable {
 	
 	/**
 	 * 
+	 * @param username
+	 * @return
+	 */
+	private boolean addUser(String username) {
+		if(onlineUsers.add(username)) {
+			System.out.println("ADD");
+			userChanged();
+			return true;
+		}
+		else return false;
+	}
+	
+	/**
+	 * 
+	 * @param username
+	 * @return
+	 */
+	private boolean removeUser(String username) {
+		if(onlineUsers.remove(username)) {
+			System.out.println("REMOVE");
+			userChanged();
+			return true;
+		}
+		else return false;
+	}
+	
+	/**
+	 * 
 	 * @return
 	 */
 	public ArrayList<String> getUsersName() {
-		return users;
+		return onlineUsers;
+	}
+	
+	/**
+	 * 
+	 */
+	public void userChanged() {
+		this.numberOfUserChange++;
+	}
+	
+	/**
+	 * 
+	 */
+	public void userChangeKnown() {
+		this.numberOfUserChange--;
+	}
+	
+	/**
+	 * 
+	 * @return
+	 */
+	public int getNumberOfUserChange() {
+		return numberOfUserChange;
 	}
 	
 	/**
@@ -153,25 +214,25 @@ public class Client implements Runnable {
 	 * @param type
 	 */
 	public void sendMessage(String str, MessageType type) {
-		StringBuilder message = new StringBuilder(type.toString() + "$");
+		StringBuilder message = new StringBuilder(type.toString() + Server.TYPE_SEPARATOR);
 		switch(type) {
-			case CONNECT:
+			case USER_CONNECT:
 				if(!isConnected) connect();
-				message.append(clientName + " has join the chat room");
+				message.append(username + " has join the chat room");
 				output.println("You have join the chat room");
 				break;
-			case DISCONNECT:
+			case USER_DISCONNECT:
 				if(isConnected) disconnect();
-				message.append(clientName + " has left the chat room");
+				message.append(username + " has left the chat room");
 				output.println("You have left the chat room");
 				break;
-			case MESSAGE:
-				message.append(clientName + ": " + str);
+			case CHAT_MESSAGE:
+				message.append(username + ": " + str);
 				output.println("You : " + str);
-				output.flush();
 				break;
 			default: break;
 		}
+		output.flush();
 		sendToServer.println(message.toString());
 		sendToServer.flush();
 	}
@@ -181,32 +242,29 @@ public class Client implements Runnable {
 	 * @param str
 	 */
 	public void receiveMessage(String str) {
-		if(str == null || str.indexOf(typeSeparator) < 0) return;
+		if(str == null || str.indexOf(Server.TYPE_SEPARATOR) < 0) return;
 		MessageType[] types = MessageType.values();
 		MessageType type = null;
 		
 		for(int i=0; i<types.length; i++) {
-			if(types[i].toString().equals(str.substring(0, str.indexOf(typeSeparator)))) {
+			if(types[i].toString().equals(str.substring(0, str.indexOf(Server.TYPE_SEPARATOR)))) {
 				type = types[i];
 				break;
 			}
 		}
 		
-		String message = str.substring(str.indexOf(typeSeparator)+1);
+		String message = str.substring(str.indexOf(Server.TYPE_SEPARATOR)+1);
 		switch(type) {
-			case CONNECT:
-				users.add(message.substring(0, message.indexOf(' ')));
-				output.println("SYSTEM: " + message);
+			case USER_CONNECT:
+				addUser(message.substring(0, message.indexOf(' ')));
 				break;
-			case DISCONNECT:
-				users.remove(message.substring(0, message.indexOf(' ')));
-				output.println("SYSTEM: " + message);
+			case USER_DISCONNECT:
+				removeUser(message.substring(0, message.indexOf(' ')));
 				break;
-			case MESSAGE:
-				output.println(message);
+			default: 
 				break;
-			default: break;
 		}
+		output.println(message);
 		output.flush();
 	}
 

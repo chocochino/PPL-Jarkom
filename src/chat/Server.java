@@ -3,9 +3,7 @@ package chat;
 
 import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
@@ -19,6 +17,11 @@ import java.util.ArrayList;
  */
 public class Server implements Runnable {
 
+	/**
+	 * 
+	 */
+	public static final char TYPE_SEPARATOR = '$';
+	
 	/**
 	 * Port number of server socket
 	 */
@@ -86,6 +89,15 @@ public class Server implements Runnable {
 	public boolean isConnected() {
 		return this.isConnected;
 	}
+	
+	private void sendTo(String username, String str) {
+		for(int i=0; i<clientSockets.size(); i++) {
+			if(clientSockets.get(i).username == username) {
+				clientSockets.get(i).sendMessage(str);
+				return;
+			}
+		}
+	}
 
 	/**
 	 * 
@@ -125,17 +137,15 @@ public class Server implements Runnable {
 	 */
 	private class ClientSocket implements Runnable {
 		
+		/**
+		 * 
+		 */
 		private Socket socket;
 		
 		/**
 		 * 
 		 */
-		private InputStream input;
-		
-		/**
-		 * 
-		 */
-		private OutputStream output;
+		private String username;
 		
 		/**
 		 * 
@@ -159,10 +169,8 @@ public class Server implements Runnable {
 		public ClientSocket(Socket clientSocket) {
 			try {
 				this.socket = clientSocket;
-				this.output = clientSocket.getOutputStream();
-				this.input = clientSocket.getInputStream();
-				this.reader = new BufferedReader(new InputStreamReader(input));
-				this.writer = new PrintWriter(new OutputStreamWriter(output));
+				this.reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+				this.writer = new PrintWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
 				writer.println("Client has connected to server");
 				writer.flush();
 			} catch (IOException e) {
@@ -171,14 +179,57 @@ public class Server implements Runnable {
 			this.thread = new Thread(this, "Client Socket on Server Side");
 			this.thread.start();
 		}
-
+		
 		/**
 		 * 
 		 * @param str
 		 */
-		public void sendMessage(String str) {
+		private void sendMessage(String str) {
 			writer.println(str);
 			writer.flush();
+		}
+		
+		/**
+		 * 
+		 * @param str
+		 */
+		private void receiveMessage(String str) {
+			if(str == null || str.indexOf(Server.TYPE_SEPARATOR) < 0) return;
+			MessageType[] types = MessageType.values();
+			MessageType type = null;
+			
+			for(int i=0; i<types.length; i++) {
+				if(types[i].toString().equals(str.substring(0, str.indexOf(Server.TYPE_SEPARATOR)))) {
+					type = types[i];
+					break;
+				}
+			}
+			
+			String message = str.substring(str.indexOf(Server.TYPE_SEPARATOR)+1);
+			switch(type) {
+				case USER_CONNECT:
+					username = message.substring(0, message.indexOf(' '));
+					for(int i=0; i<clientSockets.size(); i++) {
+						if(this != clientSockets.get(i))
+							sendTo(this.username, 
+									MessageType.USER_CONNECT.toString() + TYPE_SEPARATOR + 
+									clientSockets.get(i).username + " is in the chat room");						
+					}
+					sendToAll(this, str);
+					break;
+				case CHANGE_USERNAME:
+					username = message.substring(0, message.indexOf(' '));
+					sendToAll(this, str);
+					break;
+				case PRIVATE_CHAT_MESSAGE:
+					sendTo(message.substring(0, message.indexOf(' ')), 
+							message.substring(message.indexOf(' ')+1));
+					break;
+				default:
+					sendToAll(this, str);
+					break;
+			}
+			
 		}
 		
 		@Override
@@ -187,7 +238,7 @@ public class Server implements Runnable {
 			
 			try {
 				while((str = reader.readLine()) != null) {
-					sendToAll(this, str);
+					receiveMessage(str);
 				}
 			} catch (IOException e) {
 				e.printStackTrace();
