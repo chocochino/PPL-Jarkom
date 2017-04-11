@@ -8,6 +8,7 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collections;
 
 /**
  * 
@@ -172,6 +173,17 @@ public class Client implements Runnable {
 	
 	/**
 	 * 
+	 * @param username
+	 * @param newUsername
+	 * @return
+	 */
+	private void changeUser(String username, String newUsername) {
+		removeUser(username);
+		addUser(newUsername);
+	}
+	
+	/**
+	 * 
 	 * @return
 	 */
 	public ArrayList<String> getUsersName() {
@@ -182,6 +194,7 @@ public class Client implements Runnable {
 	 * 
 	 */
 	public void userChanged() {
+		Collections.sort(onlineUsers);
 		this.numberOfUserChange++;
 	}
 	
@@ -230,6 +243,13 @@ public class Client implements Runnable {
 				message.append(username + ": " + str);
 				output.println("You : " + str);
 				break;
+			case CHANGE_USERNAME:
+				str = str.trim();
+				message.append(username + " change username to " + str);
+				output.println("Username changed to " + str);
+				changeUser(this.getUsername(), str);
+				this.username = str;
+				break;
 			default: break;
 		}
 		output.flush();
@@ -260,6 +280,9 @@ public class Client implements Runnable {
 				break;
 			case USER_DISCONNECT:
 				removeUser(message.substring(0, message.indexOf(' ')));
+				break;
+			case CHANGE_USERNAME:
+				changeUser(message.substring(0, message.indexOf(' ')), message.substring(message.lastIndexOf(' ')+1));
 				break;
 			default: 
 				break;

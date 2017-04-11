@@ -1,5 +1,6 @@
 package chat.gui;
 
+import java.awt.Color;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.WindowEvent;
@@ -8,8 +9,10 @@ import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 
+import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JFrame;
+import javax.swing.JTextField;
 
 import chat.Client;
 import chat.MessageType;
@@ -45,6 +48,11 @@ public class ClientGUI extends JFrame {
 	private MessageBox enterMessageBox;
 	
 	/**
+	 * JTextField Object for entering username of a client
+	 */
+	private JTextField usernameField;
+	
+	/**
 	 * Button for sending a message
 	 */
 	private JButton sendButton;
@@ -53,6 +61,11 @@ public class ClientGUI extends JFrame {
 	 * Button for choose a file to sent
 	 */
 	private JButton chooseFileButton;
+	
+	/**
+	 * 
+	 */
+	private JButton setUsernameButton;
 	
 	/**
 	 * PrintWriter Object for printing online user
@@ -113,23 +126,46 @@ public class ClientGUI extends JFrame {
 			}
 		});
 		
+		//Username Field
+		usernameField = new JTextField(20);
+		usernameField.setBounds(70, 20, 80, 30);
+		usernameField.setText(client.getUsername());
+		usernameField.setBorder(BorderFactory.createLineBorder(Color.BLACK));
+		usernameField.setVisible(true);
+		this.add(usernameField);		
+		
 		//Message Box
-		messageBox = new MessageBox(10, 30, 430, 255);
+		messageBox = new MessageBox(10, 50, 430, 255);
 		messageBox.setEditable(false);
 		this.add(messageBox.getScrollPane());
 		
 		//Connected User Box
-		onlineUsersBox = new MessageBox(450, 30, 120, 255);
+		onlineUsersBox = new MessageBox(450, 50, 120, 255);
 		onlineUsersBox.setEditable(false);
 		this.add(onlineUsersBox.getScrollPane());
 		
 		//Enter Message Box
-		enterMessageBox = new MessageBox(10, 290, 430, 70);
+		enterMessageBox = new MessageBox(10, 310, 430, 70);
 		this.add(enterMessageBox.getScrollPane());
+		
+		//Set Username Button
+		setUsernameButton = new JButton("Change");
+		setUsernameButton.setBounds(155, 20, 80, 30);
+		setUsernameButton.setEnabled(true);
+		setUsernameButton.addActionListener(new ActionListener() {
+			
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				client.sendMessage(usernameField.getText(), MessageType.CHANGE_USERNAME);
+				usernameField.setText(client.getUsername());
+			}
+		});
+		setUsernameButton.setVisible(true);
+		this.add(setUsernameButton);
 		
 		//Send Button
 		sendButton = new JButton("Send");
-		sendButton.setBounds(450, 295, 120, 30);
+		sendButton.setBounds(450, 310, 120, 30);
 		sendButton.setEnabled(true);
 		sendButton.addActionListener(new ActionListener() {
 			
@@ -147,7 +183,7 @@ public class ClientGUI extends JFrame {
 		
 		//Choose File Button
 		chooseFileButton = new JButton("Choose File");
-		chooseFileButton.setBounds(450, 330, 120, 30);
+		chooseFileButton.setBounds(450, 350, 120, 30);
 		chooseFileButton.setEnabled(true);
 		chooseFileButton.addActionListener(new ActionListener() {
 			
@@ -192,7 +228,6 @@ public class ClientGUI extends JFrame {
 				}
 			}
 		});
-		
 		
 		this.setVisible(true);
 		//End of initialize frame

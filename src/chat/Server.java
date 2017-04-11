@@ -217,8 +217,12 @@ public class Server implements Runnable {
 					}
 					sendToAll(this, str);
 					break;
+				case USER_DISCONNECT:
+					sendToAll(this, str);
+					clientSockets.remove(this);
+					break;
 				case CHANGE_USERNAME:
-					username = message.substring(0, message.indexOf(' '));
+					username = message.substring(message.lastIndexOf(' ')+1);
 					sendToAll(this, str);
 					break;
 				case PRIVATE_CHAT_MESSAGE:
