@@ -1,6 +1,10 @@
 package chat;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
@@ -64,15 +68,26 @@ public class Client implements Runnable {
 	
 	/**
 	 * 
-	 * @param hostName
+	 */
+	private boolean isReceivingFile;
+	
+	/**
+	 * 
+	 */
+	private FileOutputStream fos;
+	private PrintWriter pw;
+	
+	/**
+	 * 
+	 * @param host
 	 * @param portNumber
 	 * @param username
 	 * @param intendedOutput
 	 */
-	public Client(String hostName, int portNumber, String username, PrintStream intendedOutput) {
+	public Client(String host, int portNumber, String username, PrintStream intendedOutput) {
 		//Create socket for client
 		try {
-			this.clientSocket = new Socket(hostName, portNumber);
+			this.clientSocket = new Socket(host, portNumber);
 		} catch (UnknownHostException e) {
 			System.out.println("Host not found");
 		} catch (IOException e) {
@@ -99,6 +114,7 @@ public class Client implements Runnable {
 		this.setPrintStreamOfChatBox(intendedOutput);
 		this.onlineUsers = new ArrayList<String>();
 		this.numberOfUserChange = 0;
+		this.isReceivingFile = false;
 		addUser(this.username);
 	}
 	
@@ -109,7 +125,7 @@ public class Client implements Runnable {
 		if(isConnected) return;
 		this.isConnected = true;
 		this.thread = new Thread(this, "Client Socket Java");
-		sendMessage("", MessageType.USER_CONNECT);
+		sendMessage("", MessageType.USER_CONNECT, null);
 		this.thread.run();
 	}
 	
@@ -135,7 +151,7 @@ public class Client implements Runnable {
 	public void disconnect() {
 		if(!isConnected) return;
 		this.isConnected = false;
-		sendMessage("", MessageType.USER_DISCONNECT);
+		sendMessage("", MessageType.USER_DISCONNECT, null);
 		try {
 			this.clientSocket.close();
 		} catch (IOException e) {
@@ -150,7 +166,6 @@ public class Client implements Runnable {
 	 */
 	private boolean addUser(String username) {
 		if(onlineUsers.add(username)) {
-			System.out.println("ADD");
 			userChanged();
 			return true;
 		}
@@ -164,7 +179,6 @@ public class Client implements Runnable {
 	 */
 	private boolean removeUser(String username) {
 		if(onlineUsers.remove(username)) {
-			System.out.println("REMOVE");
 			userChanged();
 			return true;
 		}
@@ -225,9 +239,15 @@ public class Client implements Runnable {
 	 * 
 	 * @param str
 	 * @param type
+	 * @param targetUser TODO
 	 */
-	public void sendMessage(String str, MessageType type) {
-		StringBuilder message = new StringBuilder(type.toString() + Server.TYPE_SEPARATOR);
+	public void sendMessage(String str, MessageType type, String targetUser) {
+		StringBuilder message = new StringBuilder(type.toString() + MessageType.TYPE_SEPARATOR);
+		
+		if(targetUser != null) {
+			message.insert(0, targetUser + MessageType.PRIVATE);
+		}
+		
 		switch(type) {
 			case USER_CONNECT:
 				if(!isConnected) connect();
@@ -250,6 +270,15 @@ public class Client implements Runnable {
 				changeUser(this.getUsername(), str);
 				this.username = str;
 				break;
+			case FILE:
+				File file = new File(str);
+				sendFile(file, message.toString());
+				sendMessage(' ' + file.getName(), MessageType.END_FILE, targetUser);
+				output.println("File has been sent");
+				break;
+			case END_FILE:
+				message.append(str);
+				break;
 			default: break;
 		}
 		output.flush();
@@ -259,36 +288,115 @@ public class Client implements Runnable {
 	
 	/**
 	 * 
+	 * @param file
+	 * @return a String with format "<filename> <filecontent>"
+	 */
+	private void sendFile(File file, String str) {
+		if(file == null || file.isDirectory()) {
+			output.println("Choosen file is invalid");
+			output.flush();
+			return;
+		}
+
+		StringBuilder message = new StringBuilder(str + file.getName() + MessageType.FILENAME_SEPARATOR);
+		FileInputStream fis;
+		byte[] buffer = new byte[4096];
+		
+		try {
+			fis = new FileInputStream(file);
+			while(fis.read(buffer) > 0) {
+				for(int i=0; i<buffer.length; i++) {	
+					message.append(Byte.toString(buffer[i]));
+					message.append(' ');
+				}
+			}
+			fis.close();
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		sendToServer.println(message.toString());
+		sendToServer.flush();
+	}
+	
+	/**
+	 * 
 	 * @param str
 	 */
 	public void receiveMessage(String str) {
-		if(str == null || str.indexOf(Server.TYPE_SEPARATOR) < 0) return;
+		if(str == null || str.indexOf(MessageType.TYPE_SEPARATOR) < 0) {
+			return;
+		}
 		MessageType[] types = MessageType.values();
 		MessageType type = null;
 		
+		//Finding Correct MessageType
 		for(int i=0; i<types.length; i++) {
-			if(types[i].toString().equals(str.substring(0, str.indexOf(Server.TYPE_SEPARATOR)))) {
+			if(types[i].toString().equals(str.substring(0, str.indexOf(MessageType.TYPE_SEPARATOR)))) {
 				type = types[i];
 				break;
 			}
 		}
 		
-		String message = str.substring(str.indexOf(Server.TYPE_SEPARATOR)+1);
+		String message = str.substring(str.indexOf(MessageType.TYPE_SEPARATOR)+1);
 		switch(type) {
 			case USER_CONNECT:
 				addUser(message.substring(0, message.indexOf(' ')));
+				output.println(message);
+				output.flush();
 				break;
 			case USER_DISCONNECT:
 				removeUser(message.substring(0, message.indexOf(' ')));
+				output.println(message);
+				output.flush();
 				break;
 			case CHANGE_USERNAME:
 				changeUser(message.substring(0, message.indexOf(' ')), message.substring(message.lastIndexOf(' ')+1));
+				output.println(message);
+				output.flush();
 				break;
-			default: 
+			case CHAT_MESSAGE:
+				output.println(message);
+				output.flush();
 				break;
+			case FILE:
+				if(!isReceivingFile) {
+					File newFile = new File(username + '_' + message.substring(0, message.indexOf(MessageType.FILENAME_SEPARATOR)));
+					message = message.substring(message.indexOf(MessageType.FILENAME_SEPARATOR)+1);
+					isReceivingFile = true;
+					try {
+						fos = new FileOutputStream(newFile);
+						pw = new PrintWriter(fos);
+					} catch (FileNotFoundException e) {
+						e.printStackTrace();
+					}
+				}
+				
+				try {
+					StringBuilder temp = new StringBuilder();
+					for(int i=0; i<message.length(); i++) {
+						if(message.charAt(i) == ' ') {
+							fos.write(Byte.parseByte(temp.toString()));
+							fos.flush();
+							temp.delete(0, temp.length());
+						}
+						else temp.append(message.charAt(i));
+					}
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+				break;
+			case END_FILE:
+				pw.close();
+				isReceivingFile = false;
+				output.println("File has received.");
+				output.flush();
+				break;
+			default: break;
 		}
-		output.println(message);
-		output.flush();
+		
 	}
 
 	@Override

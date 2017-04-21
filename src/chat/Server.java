@@ -16,11 +16,6 @@ import java.util.ArrayList;
  *
  */
 public class Server implements Runnable {
-
-	/**
-	 * 
-	 */
-	public static final char TYPE_SEPARATOR = '$';
 	
 	/**
 	 * Port number of server socket
@@ -90,9 +85,14 @@ public class Server implements Runnable {
 		return this.isConnected;
 	}
 	
+	/**
+	 * 
+	 * @param username
+	 * @param str
+	 */
 	private void sendTo(String username, String str) {
 		for(int i=0; i<clientSockets.size(); i++) {
-			if(clientSockets.get(i).username == username) {
+			if(clientSockets.get(i).username.equals(username)) {
 				clientSockets.get(i).sendMessage(str);
 				return;
 			}
@@ -118,9 +118,6 @@ public class Server implements Runnable {
 			
 			while(true) {
 				Socket socket = serverSocket.accept();
-				System.out.println();
-				System.out.println("Client detected");
-				System.out.println("Socket accepted - " + socket);
 				ClientSocket clientSocket = new ClientSocket(socket);
 				clientSockets.add(clientSocket);
 			}
@@ -164,6 +161,12 @@ public class Server implements Runnable {
 		
 		/**
 		 * 
+		 */
+		private boolean isSendingFile;		
+		
+		
+		/**
+		 * 
 		 * @param clientSocket
 		 */
 		public ClientSocket(Socket clientSocket) {
@@ -176,8 +179,18 @@ public class Server implements Runnable {
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
+			this.isSendingFile = false;
 			this.thread = new Thread(this, "Client Socket on Server Side");
 			this.thread.start();
+		}
+		
+		private void shareInChat(String username, String str) {
+			if(username.trim().equals("")) {
+				sendToAll(this, str);
+			}
+			else {
+				sendTo(username, str.substring(0, str.indexOf(':')) + " <private> " + str.substring(str.indexOf(':')));
+			}
 		}
 		
 		/**
@@ -194,46 +207,87 @@ public class Server implements Runnable {
 		 * @param str
 		 */
 		private void receiveMessage(String str) {
-			if(str == null || str.indexOf(Server.TYPE_SEPARATOR) < 0) return;
+			if(str == null) return;
+			String usr = new String();
+			int index;
+			
+			if((index = str.indexOf(MessageType.PRIVATE)) > -1) {
+				usr = str.substring(0, index);
+				str = str.substring(index + MessageType.PRIVATE.length());
+			}
+			
+			if(isSendingFile) {
+				if(str.indexOf(MessageType.TYPE_SEPARATOR) >= 0) {
+					if(str.substring(0, str.indexOf(MessageType.TYPE_SEPARATOR)).equals(MessageType.END_FILE.toString())) {
+						shareInChat(usr, str);
+						isSendingFile = false;
+					}
+					else {
+						shareInChat(usr, MessageType.FILE.toString() + MessageType.TYPE_SEPARATOR + str);
+					}
+				}
+				else {
+					shareInChat(usr, MessageType.FILE.toString() + MessageType.TYPE_SEPARATOR + str);
+				}
+				return;
+			}
+			
+			if(str.indexOf(MessageType.TYPE_SEPARATOR) < 0) {	
+				return;
+			}
+		
 			MessageType[] types = MessageType.values();
 			MessageType type = null;
 			
 			for(int i=0; i<types.length; i++) {
-				if(types[i].toString().equals(str.substring(0, str.indexOf(Server.TYPE_SEPARATOR)))) {
+				if(types[i].toString().equals(str.substring(0, str.indexOf(MessageType.TYPE_SEPARATOR)))) {
 					type = types[i];
 					break;
 				}
 			}
-			
-			String message = str.substring(str.indexOf(Server.TYPE_SEPARATOR)+1);
+						
+			String message = str.substring(str.indexOf(MessageType.TYPE_SEPARATOR)+1);
 			switch(type) {
 				case USER_CONNECT:
 					username = message.substring(0, message.indexOf(' '));
 					for(int i=0; i<clientSockets.size(); i++) {
 						if(this != clientSockets.get(i))
 							sendTo(this.username, 
-									MessageType.USER_CONNECT.toString() + TYPE_SEPARATOR + 
+									MessageType.USER_CONNECT.toString() + MessageType.TYPE_SEPARATOR + 
 									clientSockets.get(i).username + " is in the chat room");						
 					}
-					sendToAll(this, str);
+					shareInChat(usr, str);
 					break;
 				case USER_DISCONNECT:
-					sendToAll(this, str);
+					shareInChat(usr, str);
 					clientSockets.remove(this);
+					break;
+				case CHAT_MESSAGE:
+					shareInChat(usr, str);
 					break;
 				case CHANGE_USERNAME:
 					username = message.substring(message.lastIndexOf(' ')+1);
-					sendToAll(this, str);
+					shareInChat(usr, str);
 					break;
-				case PRIVATE_CHAT_MESSAGE:
-					sendTo(message.substring(0, message.indexOf(' ')), 
-							message.substring(message.indexOf(' ')+1));
+				case FILE:
+					shareInChat(usr, str);
+					isSendingFile = true;
+					break;
+				case END_FILE:
+					shareInChat(usr, str);
+					isSendingFile = false;
 					break;
 				default:
-					sendToAll(this, str);
+					shareInChat(usr, str);
 					break;
 			}
 			
+			System.out.println("Server has received a " + type.toString() + " from " + username);
+			if(usr.trim().equals("")) {
+				usr = "ALL";
+			}
+			System.out.println("username is sending " + type.toString() + " to " + usr);
+
 		}
 		
 		@Override

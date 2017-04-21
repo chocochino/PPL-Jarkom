@@ -3,16 +3,22 @@ package chat.gui;
 import java.awt.Color;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.KeyEvent;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 
+import javax.swing.AbstractAction;
+import javax.swing.Action;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JTextField;
+import javax.swing.KeyStroke;
 
 import chat.Client;
 import chat.MessageType;
@@ -66,6 +72,11 @@ public class ClientGUI extends JFrame {
 	 * 
 	 */
 	private JButton setUsernameButton;
+	
+	/**
+	 * 
+	 */
+	private JComboBox<String> receiverChooserComboBox;
 	
 	/**
 	 * PrintWriter Object for printing online user
@@ -145,8 +156,30 @@ public class ClientGUI extends JFrame {
 		this.add(onlineUsersBox.getScrollPane());
 		
 		//Enter Message Box
-		enterMessageBox = new MessageBox(10, 310, 430, 70);
+		enterMessageBox = new MessageBox(10, 330, 430, 50);
 		this.add(enterMessageBox.getScrollPane());
+		
+		Action send_key = new AbstractAction() {
+			
+			/**
+			 * 
+			 */
+			private static final long serialVersionUID = 4110177217844790717L;
+
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				String message = enterMessageBox.getText();
+				String user = receiverChooserComboBox.getItemAt(receiverChooserComboBox.getSelectedIndex());
+				if(user.equals("ALL")) user = null;
+				
+				if(!message.trim().equals("")) {
+					client.sendMessage(enterMessageBox.getText(), MessageType.CHAT_MESSAGE, user);
+				}
+				enterMessageBox.setText("");
+			}
+		};
+		
+		enterMessageBox.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0, true), send_key);
 		
 		//Set Username Button
 		setUsernameButton = new JButton("Change");
@@ -156,7 +189,7 @@ public class ClientGUI extends JFrame {
 			
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				client.sendMessage(usernameField.getText(), MessageType.CHANGE_USERNAME);
+				client.sendMessage(usernameField.getText(), MessageType.CHANGE_USERNAME, null);
 				usernameField.setText(client.getUsername());
 			}
 		});
@@ -167,17 +200,7 @@ public class ClientGUI extends JFrame {
 		sendButton = new JButton("Send");
 		sendButton.setBounds(450, 310, 120, 30);
 		sendButton.setEnabled(true);
-		sendButton.addActionListener(new ActionListener() {
-			
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				String message = enterMessageBox.getText();
-				if(!message.trim().equals("")) {
-					client.sendMessage(enterMessageBox.getText(), MessageType.CHAT_MESSAGE);
-				}
-				enterMessageBox.setText("");
-			}
-		});
+		sendButton.addActionListener(send_key);
 		sendButton.setVisible(true);
 		this.add(sendButton);
 		
@@ -189,11 +212,24 @@ public class ClientGUI extends JFrame {
 			
 			@Override
 			public void actionPerformed(ActionEvent e) {
-				//Unimplemented
+				JFileChooser fileChooser = new JFileChooser();
+				fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+				fileChooser.setMultiSelectionEnabled(false);
+				int option = fileChooser.showOpenDialog(null);
+				if(option == JFileChooser.APPROVE_OPTION) {
+					System.out.println(fileChooser.getSelectedFile().getAbsolutePath());
+					client.sendMessage(fileChooser.getSelectedFile().getAbsolutePath(), MessageType.FILE, null);
+				}
 			}
 		});
 		chooseFileButton.setVisible(true);
 		this.add(chooseFileButton);
+		
+		//Receiver ComboBox
+		receiverChooserComboBox = new JComboBox<String>();
+		receiverChooserComboBox.setBounds(10, 308, 150, 20);
+		receiverChooserComboBox.setVisible(true);
+		this.add(receiverChooserComboBox);
 		
 		//Online User Print
 		onlineUsersUpdateWriter = new PrintWriter(onlineUsersBox.getOutputStream());
@@ -206,15 +242,19 @@ public class ClientGUI extends JFrame {
 						//Update user
 						client.userChangeKnown();
 						
-						//Clear the String in connectedUserBox
+						//Clear the String in connectedUserBox and ComboBox
 						onlineUsersBox.setText("");
+						receiverChooserComboBox.removeAllItems();
+						receiverChooserComboBox.addItem("ALL");
 						
 						//Add connected users' username
 						ArrayList<String> users = client.getUsersName();
 						for(int i=0; i<users.size(); i++) {
 							onlineUsersUpdateWriter.print(users.get(i));
+							receiverChooserComboBox.addItem(users.get(i));
 							if(users.get(i).equals(client.getUsername())) {
 								onlineUsersUpdateWriter.print(" (You)");
+								receiverChooserComboBox.removeItemAt(receiverChooserComboBox.getItemCount()-1);
 							}
 							onlineUsersUpdateWriter.println();
 							onlineUsersUpdateWriter.flush();
@@ -230,6 +270,7 @@ public class ClientGUI extends JFrame {
 		});
 		
 		this.setVisible(true);
+		enterMessageBox.requestFocusInWindow();
 		//End of initialize frame
 		
 		//Other setting

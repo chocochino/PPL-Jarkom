@@ -10,10 +10,15 @@ public enum MessageType {
 	USER_CONNECT("UserConnect"),
 	USER_DISCONNECT("UserDisconnect"),
 	CHAT_MESSAGE("ChatMessage"),
-	PRIVATE_CHAT_MESSAGE("PrivateChatMessage"),
 	CHANGE_USERNAME("ChangeUsername"),
+	FILE("File"),
+	END_FILE("EndFile"),
 	SERVER_CONNECT("ServerConnect"),
 	SERVER_DISCONNECT("ServerDisconnect");
+	
+	public static final char TYPE_SEPARATOR = '$';
+	public static final char FILENAME_SEPARATOR = '&';
+	public static final String PRIVATE = "!PRIVATE!";
 	
 	/**
 	 * String that will be used in a message

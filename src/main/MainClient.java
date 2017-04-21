@@ -1,6 +1,6 @@
 package main;
 
-import java.util.Scanner;
+import javax.swing.JOptionPane;
 
 import chat.Client;
 import chat.gui.ClientGUI;
@@ -8,11 +8,12 @@ import chat.gui.ClientGUI;
 public class MainClient {
 
 	public static void main(String[] args) {
-		Scanner scanner = new Scanner(System.in);
-		String IpAddress = "localhost";
-		int portNumber = 9090;
-		String username = scanner.nextLine();
-		scanner.close();
+		String username = JOptionPane.showInputDialog("Input username");
+		String IpAddress = JOptionPane.showInputDialog("IP Address");
+		String port = JOptionPane.showInputDialog("Port number");
+		int portNumber = Integer.parseInt(port);		
+		
 		new ClientGUI(new Client(IpAddress, portNumber, username, null));
-	}	
+	}
+	
 }
