@@ -74,6 +74,11 @@ public class Client implements Runnable {
 	/**
 	 * 
 	 */
+	private String fileSender;
+	
+	/**
+	 * 
+	 */
 	private FileOutputStream fos;
 	private PrintWriter pw;
 	
@@ -272,6 +277,7 @@ public class Client implements Runnable {
 				break;
 			case FILE:
 				File file = new File(str);
+				message.append(username + MessageType.SENDER);
 				sendFile(file, message.toString());
 				sendMessage(' ' + file.getName(), MessageType.END_FILE, targetUser);
 				output.println("File has been sent");
@@ -362,15 +368,18 @@ public class Client implements Runnable {
 				break;
 			case FILE:
 				if(!isReceivingFile) {
+					isReceivingFile = true;
+					fileSender = message.substring(0, message.indexOf(MessageType.SENDER));
+					message = message.substring(message.indexOf(MessageType.SENDER) + 1);
 					File newFile = new File(username + '_' + message.substring(0, message.indexOf(MessageType.FILENAME_SEPARATOR)));
 					message = message.substring(message.indexOf(MessageType.FILENAME_SEPARATOR)+1);
-					isReceivingFile = true;
 					try {
 						fos = new FileOutputStream(newFile);
 						pw = new PrintWriter(fos);
 					} catch (FileNotFoundException e) {
 						e.printStackTrace();
 					}
+					output.println(fileSender + " is sending " + newFile.getName() + " to you.");
 				}
 				
 				try {
@@ -391,6 +400,7 @@ public class Client implements Runnable {
 			case END_FILE:
 				pw.close();
 				isReceivingFile = false;
+				fileSender = null;
 				output.println("File has received.");
 				output.flush();
 				break;

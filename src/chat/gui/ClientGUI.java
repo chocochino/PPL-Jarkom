@@ -76,6 +76,11 @@ public class ClientGUI extends JFrame {
 	/**
 	 * 
 	 */
+	private JButton disconnectButton;
+	
+	/**
+	 * 
+	 */
 	private JComboBox<String> receiverChooserComboBox;
 	
 	/**
@@ -139,7 +144,7 @@ public class ClientGUI extends JFrame {
 		
 		//Username Field
 		usernameField = new JTextField(20);
-		usernameField.setBounds(70, 20, 80, 30);
+		usernameField.setBounds(70, 15, 80, 30);
 		usernameField.setText(client.getUsername());
 		usernameField.setBorder(BorderFactory.createLineBorder(Color.BLACK));
 		usernameField.setVisible(true);
@@ -173,7 +178,8 @@ public class ClientGUI extends JFrame {
 				if(user.equals("ALL")) user = null;
 				
 				if(!message.trim().equals("")) {
-					client.sendMessage(enterMessageBox.getText(), MessageType.CHAT_MESSAGE, user);
+					if(message.charAt(message.length()-1) == '\n') message = message.substring(0, message.length()-1);
+					client.sendMessage(message, MessageType.CHAT_MESSAGE, user);
 				}
 				enterMessageBox.setText("");
 			}
@@ -183,7 +189,7 @@ public class ClientGUI extends JFrame {
 		
 		//Set Username Button
 		setUsernameButton = new JButton("Change");
-		setUsernameButton.setBounds(155, 20, 80, 30);
+		setUsernameButton.setBounds(155, 15, 80, 30);
 		setUsernameButton.setEnabled(true);
 		setUsernameButton.addActionListener(new ActionListener() {
 			
@@ -214,16 +220,33 @@ public class ClientGUI extends JFrame {
 			public void actionPerformed(ActionEvent e) {
 				JFileChooser fileChooser = new JFileChooser();
 				fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+				fileChooser.setDialogTitle("Choose File");
+				fileChooser.setApproveButtonText("Send File");
 				fileChooser.setMultiSelectionEnabled(false);
 				int option = fileChooser.showOpenDialog(null);
 				if(option == JFileChooser.APPROVE_OPTION) {
 					System.out.println(fileChooser.getSelectedFile().getAbsolutePath());
-					client.sendMessage(fileChooser.getSelectedFile().getAbsolutePath(), MessageType.FILE, null);
+					String user = receiverChooserComboBox.getItemAt(receiverChooserComboBox.getSelectedIndex());
+					client.sendMessage(fileChooser.getSelectedFile().getAbsolutePath(), MessageType.FILE, user);
 				}
 			}
 		});
 		chooseFileButton.setVisible(true);
 		this.add(chooseFileButton);
+		
+		//Disconnect button
+		disconnectButton = new JButton("Disconnect");
+		disconnectButton.setBounds(450, 15, 120, 30);
+		disconnectButton.setVisible(true);
+		disconnectButton.addActionListener(new ActionListener() {
+			
+			@Override
+			public void actionPerformed(ActionEvent e) {
+				client.disconnect();
+				disconnectButton.setEnabled(false);
+			}
+		});
+		this.add(disconnectButton);
 		
 		//Receiver ComboBox
 		receiverChooserComboBox = new JComboBox<String>();
@@ -266,6 +289,11 @@ public class ClientGUI extends JFrame {
 						e.printStackTrace();
 					}
 				}
+				
+				enterMessageBox.setEnabled(false);
+				sendButton.setEnabled(false);
+				chooseFileButton.setEnabled(false);
+				usernameField.setEnabled(false);
 			}
 		});
 		

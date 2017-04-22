@@ -18,6 +18,7 @@ public enum MessageType {
 	
 	public static final char TYPE_SEPARATOR = '$';
 	public static final char FILENAME_SEPARATOR = '&';
+	public static final char SENDER = ':';
 	public static final String PRIVATE = "!PRIVATE!";
 	
 	/**

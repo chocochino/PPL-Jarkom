@@ -1,19 +1,49 @@
 package main;
 
-import javax.swing.JOptionPane;
-
 import chat.Client;
 import chat.gui.ClientGUI;
+import chat.gui.loginGUI;
 
 public class MainClient {
 
+	private static loginGUI login;
+	
 	public static void main(String[] args) {
-		String username = JOptionPane.showInputDialog("Input username");
-		String IpAddress = JOptionPane.showInputDialog("IP Address");
-		String port = JOptionPane.showInputDialog("Port number");
-		int portNumber = Integer.parseInt(port);		
+		login = new loginGUI();
 		
-		new ClientGUI(new Client(IpAddress, portNumber, username, null));
+		Thread t = new Thread(new Runnable() {
+			
+			@Override
+			public void run() {
+				while(!login.isLogin()) {
+					try {
+						Thread.sleep(500);
+					} catch (InterruptedException e) {
+						e.printStackTrace();
+					}
+				}
+				
+				new Thread(new Runnable() {
+					
+					@Override
+					public void run() {
+						try {
+							Thread.sleep(300);
+						} catch (InterruptedException e) {
+							e.printStackTrace();
+						}
+					
+						login.dispose();
+					}
+				}).start();
+				
+				new ClientGUI(new Client(login.getIpAddress(), login.getPortNumber(), login.getUsername(), null));
+				
+			}
+		});
+		
+		t.start();
+		
 	}
 	
 }

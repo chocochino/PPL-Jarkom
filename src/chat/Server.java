@@ -5,6 +5,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -33,6 +34,11 @@ public class Server implements Runnable {
 	private ServerSocket serverSocket;
 	
 	/**
+	 * Object for temporary socket
+	 */
+	private Socket socket;
+	
+	/**
 	 * List of all connected clients on server side
 	 */
 	private ArrayList<ClientSocket> clientSockets;
@@ -42,6 +48,10 @@ public class Server implements Runnable {
 	 */
 	private Thread thread;
 	
+	/**
+	 * 
+	 */
+	private PrintStream output;
 	
 	/**
 	 * 
@@ -50,23 +60,38 @@ public class Server implements Runnable {
 	public Server(int portNumber) {
 		this.portNumber = portNumber;
 		this.isConnected = false;
-		this.thread = new Thread(this, "Server Socket Java");
 		this.clientSockets = new ArrayList<ClientSocket>();
+		
 	}
 	
 	/**
 	 * 
 	 */
 	public void runServer() {
-		this.isConnected = true;
-		this.thread.start();
+		if(!isConnected) {
+			this.isConnected = true;
+			this.thread = new Thread(this, "Server Socket Java");
+			this.thread.start();
+			output.println("Server is online");
+		}
 	}
 	
 	/**
 	 * 
 	 */
 	public void closeServer() {
-		this.isConnected = false;
+		if(isConnected) {
+			sendToAll(null, MessageType.CHAT_MESSAGE.toString() + MessageType.TYPE_SEPARATOR + "Server is disconnected");
+			output.println("Server is disconnected");
+			for(int i=0; i<clientSockets.size(); i++) {
+				try {
+					clientSockets.get(i).socket.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+			this.isConnected = false;
+		}
 	}
 	
 	/**
@@ -83,6 +108,10 @@ public class Server implements Runnable {
 	 */
 	public boolean isConnected() {
 		return this.isConnected;
+	}
+	
+	public void setOutputPrintStream(PrintStream out) {
+		output = out;
 	}
 	
 	/**
@@ -106,25 +135,40 @@ public class Server implements Runnable {
 	 */
 	private void sendToAll(ClientSocket sender, String str) {
 		for(int i=0; i<clientSockets.size(); i++) {
-			if(clientSockets.get(i).socket == sender.socket) continue;
+			if(sender != null && clientSockets.get(i).socket == sender.socket) continue;
 			clientSockets.get(i).sendMessage(str);
 		}
 	}
 
 	@Override
 	public void run() {
+		while(!isConnected) {
+			try {
+				Thread.sleep(500);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}
+				
 		try {
 			serverSocket = new ServerSocket(portNumber);
 			
-			while(true) {
-				Socket socket = serverSocket.accept();
+			while(isConnected) {
+				socket = serverSocket.accept();
 				ClientSocket clientSocket = new ClientSocket(socket);
 				clientSockets.add(clientSocket);
 			}
 		} catch (IOException e) {
 			System.out.println("Server Socket Exception");
-			System.out.println(e.getMessage());
 		}
+	}
+	
+	public String[] getConnectedClients() {
+		String[] clients = new String[clientSockets.size()];
+		for(int i=0; i<clientSockets.size(); i++) {
+			clients[i] = clientSockets.get(i).username;
+		}
+		return clients;
 	}
 		
 	/**
@@ -162,8 +206,7 @@ public class Server implements Runnable {
 		/**
 		 * 
 		 */
-		private boolean isSendingFile;		
-		
+		private boolean isSendingFile;
 		
 		/**
 		 * 
@@ -174,8 +217,6 @@ public class Server implements Runnable {
 				this.socket = clientSocket;
 				this.reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
 				this.writer = new PrintWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
-				writer.println("Client has connected to server");
-				writer.flush();
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
@@ -189,7 +230,7 @@ public class Server implements Runnable {
 				sendToAll(this, str);
 			}
 			else {
-				sendTo(username, str.substring(0, str.indexOf(':')) + " <private> " + str.substring(str.indexOf(':')));
+				sendTo(username, str.substring(0, str.indexOf(MessageType.SENDER)) + " <private> " + str.substring(str.indexOf(MessageType.SENDER)));
 			}
 		}
 		
@@ -208,7 +249,7 @@ public class Server implements Runnable {
 		 */
 		private void receiveMessage(String str) {
 			if(str == null) return;
-			String usr = new String();
+			String usr = "";
 			int index;
 			
 			if((index = str.indexOf(MessageType.PRIVATE)) > -1) {
@@ -216,23 +257,8 @@ public class Server implements Runnable {
 				str = str.substring(index + MessageType.PRIVATE.length());
 			}
 			
-			if(isSendingFile) {
-				if(str.indexOf(MessageType.TYPE_SEPARATOR) >= 0) {
-					if(str.substring(0, str.indexOf(MessageType.TYPE_SEPARATOR)).equals(MessageType.END_FILE.toString())) {
-						shareInChat(usr, str);
-						isSendingFile = false;
-					}
-					else {
-						shareInChat(usr, MessageType.FILE.toString() + MessageType.TYPE_SEPARATOR + str);
-					}
-				}
-				else {
-					shareInChat(usr, MessageType.FILE.toString() + MessageType.TYPE_SEPARATOR + str);
-				}
-				return;
-			}
-			
-			if(str.indexOf(MessageType.TYPE_SEPARATOR) < 0) {	
+			if(str.indexOf(MessageType.TYPE_SEPARATOR) < 0) {
+				if(isSendingFile) shareInChat(usr, MessageType.FILE.toString() + MessageType.TYPE_SEPARATOR + str);
 				return;
 			}
 		
@@ -245,6 +271,8 @@ public class Server implements Runnable {
 					break;
 				}
 			}
+			
+			output.println("Server has received a " + type.toString() + " message from " + username);
 						
 			String message = str.substring(str.indexOf(MessageType.TYPE_SEPARATOR)+1);
 			switch(type) {
@@ -256,9 +284,11 @@ public class Server implements Runnable {
 									MessageType.USER_CONNECT.toString() + MessageType.TYPE_SEPARATOR + 
 									clientSockets.get(i).username + " is in the chat room");						
 					}
+					output.println(username + " has connected.");
 					shareInChat(usr, str);
 					break;
 				case USER_DISCONNECT:
+					output.println(username + " has disconnected.");
 					shareInChat(usr, str);
 					clientSockets.remove(this);
 					break;
@@ -282,12 +312,12 @@ public class Server implements Runnable {
 					break;
 			}
 			
-			System.out.println("Server has received a " + type.toString() + " from " + username);
 			if(usr.trim().equals("")) {
 				usr = "ALL";
 			}
-			System.out.println("username is sending " + type.toString() + " to " + usr);
-
+			
+			output.println("Server is sending " + type.toString() + " message from " + username + " to " + usr);
+			output.println();
 		}
 		
 		@Override
